@@ -45,7 +45,7 @@
 			const spinner = document.getElementById('loading-spinner');
 			spinner.classList.remove('d-none'); // 显示 Spinner
 
-			await fetch('https://ragecoop.s-o-r-a.top/all')
+			await fetch('https://masterserver.s-o-r-a.top/all')
 				.then(res => res.json())
 				.then(data => {
 					serversData = data.servers.map(server => ({
