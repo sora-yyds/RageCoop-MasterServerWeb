@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<title>RageCoop服务器</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+	<link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+	<div class="container">
+		<h1 class="text-center">
+			服务器
+			<span id="loading-spinner" class="spinner-border spinner-border-sm text-primary ml-2 d-none" role="status"
+				aria-hidden="true"></span>
+		</h1>
+
+		<div class="card p-3">
+			<div class="table-responsive">
+				<table class="table table-striped mb-0">
+					<thead>
+						<tr>
+							<th onclick="sortTable('name')">名称 <span id="arrow-name"></span></th>
+							<th onclick="sortTable('ip')">服务器 IP <span id="arrow-ip"></span></th>
+							<th onclick="sortTable('players')">玩家 <span id="arrow-players"></span></th>
+							<th onclick="sortTable('status')">状态 <span id="arrow-status"></span></th>
+						</tr>
+					</thead>
+					<tbody id="server-list-body">
+						<!-- Server rows will be added dynamically by JavaScript -->
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+	<script>
+		let serversData = [];
+		let currentSort = { column: null, ascending: true };
+
+		async function updateServerList() {
+			const spinner = document.getElementById('loading-spinner');
+			spinner.classList.remove('d-none'); // 显示 Spinner
+
+			await fetch('https://ragecoop.s-o-r-a.top/all')
+				.then(res => res.json())
+				.then(data => {
+					serversData = data.servers.map(server => ({
+						name: server.name,
+						ip: server.address + ":" + server.port,
+						players: `${server.players}/${server.maxPlayers}`,
+						playerCount: server.players,
+						status: server.players == 0 ? "Offline" : "Online"
+					}));
+					renderTable(serversData);
+				})
+				.catch(err => console.error(err))
+				.finally(() => {
+					spinner.classList.add('d-none'); // 隐藏 Spinner
+				});
+		}
+
+
+		function renderTable(data) {
+			const tbody = document.getElementById('server-list-body');
+			tbody.innerHTML = '';
+			data.forEach(server => {
+				const row = document.createElement('tr');
+
+				row.innerHTML = `
+					<td>${server.name}</td>
+					<td>${server.ip}</td>
+					<td>${server.players}</td>
+					<td>
+						<span class="badge ${server.status === 'Online' ? 'badge-success' : 'badge-secondary'}">
+							${server.status}
+						</span>
+					</td>
+				`;
+				tbody.appendChild(row);
+			});
+		}
+
+		function sortTable(column) {
+			const arrowMap = {
+				name: 'arrow-name',
+				ip: 'arrow-ip',
+				players: 'arrow-players',
+				status: 'arrow-status'
+			};
+
+			Object.keys(arrowMap).forEach(key => {
+				document.getElementById(arrowMap[key]).textContent = '';
+			});
+
+			if (currentSort.column === column) {
+				currentSort.ascending = !currentSort.ascending;
+			} else {
+				currentSort.column = column;
+				currentSort.ascending = true;
+			}
+
+			const arrow = currentSort.ascending ? '▲' : '▼';
+			document.getElementById(arrowMap[column]).textContent = arrow;
+
+			serversData.sort((a, b) => {
+				let valA = a[column];
+				let valB = b[column];
+
+				if (column === 'players') {
+					valA = a.playerCount;
+					valB = b.playerCount;
+				}
+
+				if (valA < valB) return currentSort.ascending ? -1 : 1;
+				if (valA > valB) return currentSort.ascending ? 1 : -1;
+				return 0;
+			});
+
+			renderTable(serversData);
+		}
+
+		updateServerList();
+		setInterval(updateServerList, 5000);
+	</script>
+</body>
+</html>
