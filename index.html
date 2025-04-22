@@ -21,9 +21,10 @@
 					<thead>
 						<tr>
 							<th onclick="sortTable('name')">名称 <span id="arrow-name"></span></th>
-							<th onclick="sortTable('ip')">服务器 IP <span id="arrow-ip"></span></th>
+							<th onclick="sortTable('description')">描述 <span id="arrow-description"></span></th>
+							<th onclick="sortTable('version')">版本 <span id="arrow-version"></span></th>
 							<th onclick="sortTable('players')">玩家 <span id="arrow-players"></span></th>
-							<th onclick="sortTable('status')">状态 <span id="arrow-status"></span></th>
+							<th onclick="sortTable('country')">国家/地区 <span id="arrow-country"></span></th>
 						</tr>
 					</thead>
 					<tbody id="server-list-body">
@@ -40,29 +41,67 @@
 	<script>
 		let serversData = [];
 		let currentSort = { column: null, ascending: true };
+		
+		// 主服务器地址列表
+		const masterServers = [
+			'https://masterserver.s-o-r-a.top/all',
+			'https://masterserver.ragecoop.com/all'
+		];
+
+		async function fetchFromMasterServer(url) {
+			try {
+				const response = await fetch(url);
+				const data = await response.json();
+				return data.servers || [];
+			} catch (err) {
+				console.error(`从 ${url} 获取数据失败:`, err);
+				return [];
+			}
+		}
 
 		async function updateServerList() {
 			const spinner = document.getElementById('loading-spinner');
-			spinner.classList.remove('d-none'); // 显示 Spinner
+			spinner.classList.remove('d-none');
 
-			await fetch('https://masterserver.s-o-r-a.top/all')
-				.then(res => res.json())
-				.then(data => {
-					serversData = data.servers.map(server => ({
-						name: server.name,
-						ip: server.address + ":" + server.port,
-						players: `${server.players}/${server.maxPlayers}`,
-						playerCount: server.players,
-						status: server.players == 0 ? "Offline" : "Online"
-					}));
-					renderTable(serversData);
-				})
-				.catch(err => console.error(err))
-				.finally(() => {
-					spinner.classList.add('d-none'); // 隐藏 Spinner
+			try {
+				// 从所有主服务器获取数据
+				const allServersPromises = masterServers.map(url => fetchFromMasterServer(url));
+				const allServersArrays = await Promise.all(allServersPromises);
+				
+				// 合并所有服务器数据
+				const combinedServers = allServersArrays.flat();
+				
+				// 使用Map根据IP:端口组合去重
+				const uniqueServers = new Map();
+				
+				combinedServers.forEach(server => {
+					const serverKey = `${server.address}:${server.port}`;
+					// 如果服务器已存在，只有当新服务器在线（有玩家）时才更新
+					if (!uniqueServers.has(serverKey) || 
+						(server.players > 0 && uniqueServers.get(serverKey).players === 0)) {
+						uniqueServers.set(serverKey, server);
+					}
 				});
-		}
 
+				// 转换为显示格式
+				serversData = Array.from(uniqueServers.values()).map(server => ({
+					name: server.name,
+					address: server.address,
+					port: server.port,
+					description: server.description,
+					version: server.version,
+					players: `${server.players}/${server.maxPlayers}`,
+					playerCount: server.players,
+					country: server.country
+				}));
+
+				renderTable(serversData);
+			} catch (err) {
+				console.error('更新服务器列表时出错:', err);
+			} finally {
+				spinner.classList.add('d-none');
+			}
+		}
 
 		function renderTable(data) {
 			const tbody = document.getElementById('server-list-body');
@@ -71,14 +110,14 @@
 				const row = document.createElement('tr');
 
 				row.innerHTML = `
-					<td>${server.name}</td>
-					<td>${server.ip}</td>
-					<td>${server.players}</td>
 					<td>
-						<span class="badge ${server.status === 'Online' ? 'badge-success' : 'badge-secondary'}">
-							${server.status}
-						</span>
+						<div>${server.name}</div>
+						<small class="text-white">${server.address}:${server.port}</small>
 					</td>
+					<td>${server.description}</td>
+					<td>${server.version}</td>
+					<td>${server.players}</td>
+					<td>${server.country}</td>
 				`;
 				tbody.appendChild(row);
 			});
@@ -87,9 +126,10 @@
 		function sortTable(column) {
 			const arrowMap = {
 				name: 'arrow-name',
-				ip: 'arrow-ip',
+				description: 'arrow-description',
+				version: 'arrow-version',
 				players: 'arrow-players',
-				status: 'arrow-status'
+				country: 'arrow-country'
 			};
 
 			Object.keys(arrowMap).forEach(key => {
